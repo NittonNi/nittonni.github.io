@@ -181,7 +181,7 @@ input:focus,select:focus{border-color:var(--accent)}
 
 <!-- NUEVA PESTAÑA: CHAT IA -->
 <div id="p-ia" class="page">
-  <div class="page-header"><h1>Asistente IA</h1></div>
+  <div class="page-header">   <h1>Asistente IA</h1>   <button onclick="clearChatHistory()" style="background:none;border:1px solid var(--border);font-size:12px;color:var(--muted);cursor:pointer;padding:5px 10px;border-radius:8px">Limpiar</button> </div>
   <div class="card" style="display:flex; flex-direction:column; height:calc(100vh - 190px); padding:10px;">
     
     <div id="chat-history" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; padding-right:4px; margin-bottom:12px;">
@@ -538,6 +538,7 @@ function saveGeminiKey() {
 document.addEventListener('DOMContentLoaded', () => {
   const savedKey = localStorage.getItem('GEMINI_KEY');
   if (savedKey) document.getElementById('gemini-key-in').value = savedKey;
+  loadChatHistory();
 });
 
 
@@ -654,23 +655,10 @@ try {
     }
     // -------------------------------------
 
-    const part = data.candidates?.[0]?.content?.parts?.[0];
+const part = data.candidates?.[0]?.content?.parts?.[0];
     if(!part) throw new Error("Respuesta vacía de la IA");
-
     if(part.functionCall) {
-      const args = part.functionCall.args;
-      appendChat('ia', '⏳ Estoy guardando el gasto en Airtable...', 'chat-saving-id');
-      
-      const success = await addGastoDesdeIA(args);
-      document.getElementById('chat-saving-id')?.remove();
-      
-      if(success) {
-        const confirmMsg = `✅ ¡Listo! He registrado: **${args.importe}€** de "${args.concepto}" pagado por **${args.quien}**.`;
-        appendChat('ia', confirmMsg);
-        chatMensajes.push({ role: "model", parts: [{ text: confirmMsg }] });
-      } else {
-        appendChat('ia', '❌ Vaya, hubo un problema técnico al guardarlo en Airtable.');
-      }
+      showConfirmacion(part.functionCall.args);
     } else {
       appendChat('ia', part.text);
       chatMensajes.push(data.candidates[0].content);
@@ -680,6 +668,99 @@ try {
     appendChat('ia', '❌ Hubo un error de conexión con la inteligencia artificial o tu API Key es inválida.');
     console.error(error);
   }
+}
+
+let pendingGastoArgs = null;
+
+function saveChatHistory() {
+  try {
+    const msgs = Array.from(document.getElementById('chat-history').querySelectorAll('.chat-msg'))
+      .filter(el => el.id !== 'confirm-box')
+      .map(el => ({ role: el.classList.contains('chat-user') ? 'user' : 'ia', html: el.innerHTML }));
+    localStorage.setItem('gc-chat', JSON.stringify(msgs.slice(-40)));
+  } catch(e) {}
+}
+
+function loadChatHistory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('gc-chat') || '[]');
+    if (!saved.length) return;
+    const history = document.getElementById('chat-history');
+    history.innerHTML = '';
+    saved.forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'chat-msg ' + (m.role === 'user' ? 'chat-user' : 'chat-ia');
+      div.innerHTML = m.html;
+      history.appendChild(div);
+    });
+    history.scrollTop = history.scrollHeight;
+  } catch(e) {}
+}
+
+function clearChatHistory() {
+  if (!confirm('¿Borrar el historial del chat?')) return;
+  chatMensajes = [];
+  localStorage.removeItem('gc-chat');
+  document.getElementById('chat-history').innerHTML = '<div class="chat-msg chat-ia">¡Hola! Dime qué gasto quieres añadir. Por ejemplo: <em>"Añade 15€ de unas pizzas que pagó Nico en efectivo"</em>.</div>';
+}
+
+function showConfirmacion(args) {
+  pendingGastoArgs = args;
+  document.getElementById('confirm-box')?.remove();
+  const persona = getPersona(args.quien);
+  const fecha = args.fecha || new Date().toISOString().split('T')[0];
+  const history = document.getElementById('chat-history');
+  const div = document.createElement('div');
+  div.id = 'confirm-box';
+  div.className = 'chat-msg chat-ia';
+  div.style.cssText = 'border:1.5px solid var(--accent);max-width:100%;margin-left:0';
+  div.innerHTML = `
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">¿Confirmas este gasto?</div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:5px 12px;font-size:13px;margin-bottom:12px">
+      <span style="color:var(--muted)">Concepto</span><span style="font-weight:500">${args.concepto}</span>
+      <span style="color:var(--muted)">Importe</span><span style="font-weight:700;font-size:15px">${parseFloat(args.importe).toLocaleString('es-ES',{minimumFractionDigits:2})} €</span>
+      <span style="color:var(--muted)">Quién</span><span><span class="badge b-${persona.cls}">${persona.nombre}</span></span>
+      <span style="color:var(--muted)">Categoría</span><span>${args.categoria}</span>
+      <span style="color:var(--muted)">Método</span><span>${args.metodo}</span>
+      <span style="color:var(--muted)">Fecha</span><span>${fecha}</span>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" style="flex:1;padding:9px;font-size:13px" onclick="cancelarGastoIA()">Cancelar</button>
+      <button class="btn btn-primary" style="flex:1;padding:9px;font-size:13px" onclick="confirmarGastoIA()">✓ Confirmar</button>
+    </div>`;
+  history.appendChild(div);
+  history.scrollTop = history.scrollHeight;
+}
+
+async function confirmarGastoIA() {
+  const args = pendingGastoArgs;
+  if (!args) return;
+  document.getElementById('confirm-box')?.remove();
+  pendingGastoArgs = null;
+  appendChat('ia', 'loading', 'chat-saving-id');
+  setSyncDot('loading');
+  try {
+    const fecha = args.fecha || new Date().toISOString().split('T')[0];
+    const r = await atFetch('POST', '', {
+      records: [{ fields: { fecha, concepto: args.concepto, quien: args.quien, met: args.metodo, cat: args.categoria, imp: parseFloat(args.importe), notas: args.notas || '' } }]
+    });
+    const rec = r.records[0];
+    gastos.unshift({ id: rec.id, fecha, conc: args.concepto, quien: args.quien, met: args.metodo, cat: args.categoria, imp: parseFloat(args.importe), notas: args.notas || '' });
+    setSyncDot('ok');
+    document.getElementById('chat-saving-id')?.remove();
+    appendChat('ia', `✅ ¡Listo! **${args.importe}€** de "${args.concepto}" guardado.`);
+    saveChatHistory();
+  } catch(e) {
+    setSyncDot('err');
+    document.getElementById('chat-saving-id')?.remove();
+    appendChat('ia', '❌ Error al guardar en Airtable. Inténtalo de nuevo.');
+  }
+}
+
+function cancelarGastoIA() {
+  document.getElementById('confirm-box')?.remove();
+  pendingGastoArgs = null;
+  appendChat('ia', 'Cancelado. Dime si quieres modificar algo o añadir otro gasto.');
 }
 // === FIN LOGICA IA ===
 
