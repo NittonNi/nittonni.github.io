@@ -111,6 +111,16 @@ input:focus,select:focus{border-color:var(--accent)}
 .loading-spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-txt{font-size:14px;color:var(--muted)}
+
+/* ESTILOS NUEVOS PARA EL CHAT IA */
+.chat-msg { padding: 12px 14px; border-radius: 12px; max-width: 85%; font-size: 14px; line-height: 1.4; margin-bottom: 8px; word-wrap: break-word; }
+.chat-user { background: var(--accent); color: var(--bg); align-self: flex-end; border-bottom-right-radius: 4px; }
+.chat-ia { background: var(--card); border: 1px solid var(--border); color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; }
+.chat-loading { display: flex; gap: 4px; align-items: center; justify-content: center; height: 20px;}
+.dot { width: 6px; height: 6px; background: var(--muted); border-radius: 50%; animation: blink 1.4s infinite both; }
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: 0; } 40% { opacity: 1; } }
 </style>
 </head>
 <body>
@@ -169,6 +179,24 @@ input:focus,select:focus{border-color:var(--accent)}
   </div>
 </div>
 
+<!-- NUEVA PESTAÑA: CHAT IA -->
+<div id="p-ia" class="page">
+  <div class="page-header"><h1>Asistente IA</h1></div>
+  <div class="card" style="display:flex; flex-direction:column; height:calc(100vh - 190px); padding:10px;">
+    
+    <div id="chat-history" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; padding-right:4px; margin-bottom:12px;">
+      <div class="chat-msg chat-ia">¡Hola! Dime qué gasto quieres añadir. Por ejemplo: <em>"Añade 15€ de unas pizzas que pagó Nico en efectivo"</em>. Si me falta algún dato, te lo preguntaré.</div>
+    </div>
+
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="chat-input" placeholder="Escribe aquí..." style="flex:1; margin-bottom:0;" onkeypress="if(event.key === 'Enter') enviarMensajeIA()">
+      <button class="btn btn-primary" style="width:auto; padding:12px 16px;" onclick="enviarMensajeIA()">Enviar</button>
+    </div>
+
+  </div>
+</div>
+<!-- FIN NUEVA PESTAÑA -->
+
 <div id="p-registro" class="page">
   <div class="page-header"><h1>Registro</h1></div>
   <div class="filter-row" id="filter-row"></div>
@@ -205,6 +233,21 @@ input:focus,select:focus{border-color:var(--accent)}
 
 <div id="p-ajustes" class="page">
   <div class="page-header"><h1>Ajustes</h1></div>
+  
+  <!-- NUEVA SECCIÓN DE IA EN AJUSTES -->
+  <div class="card">
+    <div class="card-title">Inteligencia Artificial</div>
+    <div class="field">
+      <label>API Key de Gemini</label>
+      <input type="password" id="gemini-key-in" placeholder="Pega aquí tu clave...">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-sm" onclick="saveGeminiKey()">Guardar Key en este dispositivo</button>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">La clave se guarda en tu móvil/PC, no en internet.</p>
+  </div>
+  <!-- FIN SECCIÓN IA -->
+
   <div class="card">
     <div class="card-title">Personas</div>
     <div id="personas-settings"></div>
@@ -329,6 +372,13 @@ input:focus,select:focus{border-color:var(--accent)}
     <span class="nav-icon">📄</span>
     <span class="nav-lbl">Informe</span>
   </button>
+  
+  <!-- BOTÓN DE IA EN EL MENÚ -->
+  <button class="nav-item" onclick="go('ia')">
+    <span class="nav-icon">✨</span>
+    <span class="nav-lbl">Chat IA</span>
+  </button>
+
   <button class="nav-item" onclick="go('ajustes')">
     <span class="nav-icon">⚙️</span>
     <span class="nav-lbl">Ajustes</span>
@@ -336,6 +386,7 @@ input:focus,select:focus{border-color:var(--accent)}
 </nav>
 
 <script>
+// --- CONFIGURACIÓN EXISTENTE ---
 const AT_TOKEN = 'pat8pLgxb7AIz26tj.9ea7cedeb3f32abe96374e00314e7215a9ebc21d964e8179052da3ec71f732d4';
 const AT_BASE  = 'appoMKP622pEE2rC5';
 const AT_TABLE = 'Gastos';
@@ -353,7 +404,6 @@ let cfg = {
   cats:['Compras','Gasto fijo','Ocio','Restaurantes','Viajes','Otros']
 };
 let selPersona=null, selCat=null, filterPersona='todos';
-
 
 let editId = null;
 let editPersona = null;
@@ -472,6 +522,153 @@ async function addGasto(){
   }catch(e){ setSyncDot('err'); showStatus('Error al guardar. Comprueba la conexión.',false); }
 }
 
+// === LOGICA NUEVA PARA LA LLAVE DE GEMINI EN LOCALSTORAGE ===
+function saveGeminiKey() {
+  const key = document.getElementById('gemini-key-in').value.trim();
+  if (key) {
+    localStorage.setItem('GEMINI_KEY', key);
+    alert('✅ API Key de IA guardada en este dispositivo.');
+  } else {
+    localStorage.removeItem('GEMINI_KEY');
+    alert('🗑️ API Key eliminada.');
+  }
+}
+
+// Cargar la llave en el input cuando abres la web (si ya la habías guardado)
+document.addEventListener('DOMContentLoaded', () => {
+  const savedKey = localStorage.getItem('GEMINI_KEY');
+  if (savedKey) document.getElementById('gemini-key-in').value = savedKey;
+});
+
+
+// === LOGICA NUEVA PARA EL CHAT IA ===
+let chatMensajes = [];
+
+function appendChat(role, text, id = null) {
+  const history = document.getElementById('chat-history');
+  const div = document.createElement('div');
+  div.className = `chat-msg ${role === 'user' ? 'chat-user' : 'chat-ia'}`;
+  if(id) div.id = id;
+  
+  if(text === 'loading') {
+    div.innerHTML = `<div class="chat-loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+  } else {
+    div.textContent = text;
+  }
+  
+  history.appendChild(div);
+  history.scrollTop = history.scrollHeight;
+}
+
+async function addGastoDesdeIA(args) {
+  setSyncDot('loading');
+  try {
+    const fecha = args.fecha || new Date().toISOString().split('T')[0];
+    const conc = args.concepto || 'Gasto IA';
+    const quien = args.quien || cfg.personas[0].id;
+    const met = args.metodo || 'Tarjeta';
+    const cat = args.categoria || cfg.cats[0];
+    const imp = parseFloat(args.importe);
+    const notas = args.notas || 'Añadido por IA';
+
+    const r = await atFetch('POST', '', {
+      records: [{ fields: { fecha, concepto: conc, quien, met, cat, imp, notas } }]
+    });
+    const rec = r.records[0];
+    gastos.unshift({ id: rec.id, fecha, conc, quien, met, cat, imp, notas });
+    setSyncDot('ok');
+    return true;
+  } catch (e) {
+    setSyncDot('err');
+    return false;
+  }
+}
+
+async function enviarMensajeIA() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if(!msg) return;
+
+  // Sacamos la llave de localStorage que pusiste en Ajustes
+  const GEMINI_API_KEY = localStorage.getItem('GEMINI_KEY');
+  if(!GEMINI_API_KEY) {
+    alert("⚠️ Vete a la pestaña 'Ajustes' y guarda tu API Key de Gemini primero para poder usar el chat.");
+    return;
+  }
+
+  input.value = '';
+  appendChat('user', msg);
+  appendChat('ia', 'loading', 'chat-loading-id');
+
+  chatMensajes.push({ role: "user", parts: [{ text: msg }] });
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+  
+  const sysInst = `Eres un asistente amable que ayuda a registrar gastos compartidos. La fecha de hoy es ${new Date().toISOString().split('T')[0]}. 
+  - Las personas válidas son: ${cfg.personas.map(p=>p.id).join(', ')}.
+  - Las categorías válidas son: ${cfg.cats.join(', ')}.
+  - Los métodos de pago son: Bizum, Transferencia, Tarjeta, Domiciliación, Efectivo.
+  Si el usuario te pide registrar un gasto y tienes todos los datos, usa la herramienta registrar_gasto. Si te falta alguno de estos (quién paga, concepto, cantidad, categoría, método de pago), pregúntaselo primero.`;
+
+  const reqBody = {
+    systemInstruction: { parts: [{ text: sysInst }] },
+    contents: chatMensajes,
+    tools: [{
+      functionDeclarations: [{
+        name: "registrar_gasto",
+        description: "Guarda el gasto en la base de datos Airtable.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            concepto: { type: "STRING", description: "Breve descripción del gasto" },
+            importe: { type: "NUMBER", description: "Cantidad de dinero. Utiliza formato de número puro (ej. 15.50)" },
+            quien: { type: "STRING", description: "ID de la persona que ha pagado." },
+            categoria: { type: "STRING" },
+            metodo: { type: "STRING" },
+            fecha: { type: "STRING", description: "Fecha en formato YYYY-MM-DD" },
+            notas: { type: "STRING" }
+          },
+          required: ["concepto", "importe", "quien", "categoria", "metodo"]
+        }
+      }]
+    }]
+  };
+
+  try {
+    const res = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(reqBody) });
+    const data = await res.json();
+    
+    document.getElementById('chat-loading-id')?.remove();
+
+    const part = data.candidates?.[0]?.content?.parts?.[0];
+    if(!part) throw new Error("Respuesta vacía de la IA");
+
+    if(part.functionCall) {
+      const args = part.functionCall.args;
+      appendChat('ia', '⏳ Estoy guardando el gasto en Airtable...', 'chat-saving-id');
+      
+      const success = await addGastoDesdeIA(args);
+      document.getElementById('chat-saving-id')?.remove();
+      
+      if(success) {
+        const confirmMsg = `✅ ¡Listo! He registrado: **${args.importe}€** de "${args.concepto}" pagado por **${args.quien}**.`;
+        appendChat('ia', confirmMsg);
+        chatMensajes.push({ role: "model", parts: [{ text: confirmMsg }] });
+      } else {
+        appendChat('ia', '❌ Vaya, hubo un problema técnico al guardarlo en Airtable.');
+      }
+    } else {
+      appendChat('ia', part.text);
+      chatMensajes.push(data.candidates[0].content);
+    }
+  } catch (error) {
+    document.getElementById('chat-loading-id')?.remove();
+    appendChat('ia', '❌ Hubo un error de conexión con la inteligencia artificial o tu API Key es inválida.');
+    console.error(error);
+  }
+}
+// === FIN LOGICA IA ===
+
 async function deleteGasto(id){
   if(!confirm('¿Borrar este gasto?')) return;
   setSyncDot('loading');
@@ -505,7 +702,7 @@ function go(p){
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('on'));
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('on'));
   document.getElementById('p-'+p).classList.add('on');
-  const idx={nuevo:0,registro:1,dashboard:2,informe:3,ajustes:4}[p];
+  const idx={nuevo:0,registro:1,dashboard:2,informe:3,ia:4,ajustes:5}[p];
   document.querySelectorAll('.nav-item')[idx].classList.add('on');
   if(p==='registro') renderRegistro();
   if(p==='dashboard') renderDashboard();
