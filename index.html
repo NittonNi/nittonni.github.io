@@ -765,10 +765,9 @@ function cancelarGastoIA() {
   appendChat('ia', 'Cancelado. Dime si quieres modificar algo o añadir otro gasto.');
 }
 
-let reconocimiento = null;
-
 function iniciarVoz(e) {
   e.preventDefault();
+  if (reconocimiento) return;
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     alert('Tu navegador no soporta reconocimiento de voz. Prueba con Chrome o Safari.');
@@ -781,14 +780,17 @@ function iniciarVoz(e) {
   reconocimiento.onresult = (event) => {
     const texto = event.results[0][0].transcript;
     document.getElementById('chat-input').value = texto;
+    document.getElementById('btn-mic').classList.remove('grabando');
+    reconocimiento = null;
     enviarMensajeIA();
   };
-  reconocimiento.onerror = (e) => {
-    console.error('Error voz:', e.error);
+  reconocimiento.onerror = () => {
     document.getElementById('btn-mic').classList.remove('grabando');
+    reconocimiento = null;
   };
   reconocimiento.onend = () => {
     document.getElementById('btn-mic').classList.remove('grabando');
+    reconocimiento = null;
   };
   reconocimiento.start();
   document.getElementById('btn-mic').classList.add('grabando');
@@ -796,7 +798,7 @@ function iniciarVoz(e) {
 
 function pararVoz(e) {
   e.preventDefault();
-  if (reconocimiento) reconocimiento.stop();
+  // No paramos manualmente — el reconocimiento para solo al detectar silencio
 }
 // === FIN LOGICA IA ===
 
