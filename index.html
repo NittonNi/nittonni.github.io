@@ -121,6 +121,7 @@ input:focus,select:focus{border-color:var(--accent)}
 .dot:nth-child(2) { animation-delay: 0.2s; }
 .dot:nth-child(3) { animation-delay: 0.4s; }
 @keyframes blink { 0%, 80%, 100% { opacity: 0; } 40% { opacity: 1; } }
+#btn-mic.grabando { background: #fee2e2 !important; color: #e53e3e !important; border-color: #e53e3e !important; animation: pulse 1s infinite; }
 </style>
 </head>
 <body>
@@ -190,6 +191,7 @@ input:focus,select:focus{border-color:var(--accent)}
 
     <div style="display:flex; gap:8px;">
       <input type="text" id="chat-input" placeholder="Escribe aquí..." style="flex:1; margin-bottom:0;" onkeypress="if(event.key === 'Enter') enviarMensajeIA()">
+      <button id="btn-mic" class="btn" style="width:auto;padding:12px 14px;background:var(--card);color:var(--muted);border-color:var(--border);" ontouchstart="iniciarVoz(event)" ontouchend="pararVoz(event)" onmousedown="iniciarVoz(event)" onmouseup="pararVoz(event)">🎤</button>
       <button class="btn btn-primary" style="width:auto; padding:12px 16px;" onclick="enviarMensajeIA()">Enviar</button>
     </div>
 
@@ -761,6 +763,40 @@ function cancelarGastoIA() {
   document.getElementById('confirm-box')?.remove();
   pendingGastoArgs = null;
   appendChat('ia', 'Cancelado. Dime si quieres modificar algo o añadir otro gasto.');
+}
+
+let reconocimiento = null;
+
+function iniciarVoz(e) {
+  e.preventDefault();
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert('Tu navegador no soporta reconocimiento de voz. Prueba con Chrome o Safari.');
+    return;
+  }
+  reconocimiento = new SpeechRecognition();
+  reconocimiento.lang = 'es-ES';
+  reconocimiento.continuous = false;
+  reconocimiento.interimResults = false;
+  reconocimiento.onresult = (event) => {
+    const texto = event.results[0][0].transcript;
+    document.getElementById('chat-input').value = texto;
+    enviarMensajeIA();
+  };
+  reconocimiento.onerror = (e) => {
+    console.error('Error voz:', e.error);
+    document.getElementById('btn-mic').classList.remove('grabando');
+  };
+  reconocimiento.onend = () => {
+    document.getElementById('btn-mic').classList.remove('grabando');
+  };
+  reconocimiento.start();
+  document.getElementById('btn-mic').classList.add('grabando');
+}
+
+function pararVoz(e) {
+  e.preventDefault();
+  if (reconocimiento) reconocimiento.stop();
 }
 // === FIN LOGICA IA ===
 
