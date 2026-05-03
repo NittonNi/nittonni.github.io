@@ -634,11 +634,19 @@ async function enviarMensajeIA() {
     }]
   };
 
-  try {
+try {
     const res = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(reqBody) });
     const data = await res.json();
     
     document.getElementById('chat-loading-id')?.remove();
+
+    // --- NUEVO CHIVATO DE ERRORES AQUÍ ---
+    if (!res.ok) {
+      alert("Error de Google: " + (data.error?.message || "Desconocido"));
+      appendChat('ia', '❌ Error detallado: ' + (data.error?.message || "Desconocido"));
+      return;
+    }
+    // -------------------------------------
 
     const part = data.candidates?.[0]?.content?.parts?.[0];
     if(!part) throw new Error("Respuesta vacía de la IA");
