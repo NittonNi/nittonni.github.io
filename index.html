@@ -121,7 +121,19 @@ input:focus,select:focus{border-color:var(--accent)}
 .dot:nth-child(2) { animation-delay: 0.2s; }
 .dot:nth-child(3) { animation-delay: 0.4s; }
 @keyframes blink { 0%, 80%, 100% { opacity: 0; } 40% { opacity: 1; } }
-#btn-mic.grabando { background: #fee2e2 !important; color: #e53e3e !important; border-color: #e53e3e !important; animation: pulse 1s infinite; }
+#btn-mic { transition: all .2s; }
+#btn-mic.grabando { background: #e53e3e !important; color: white !important; border-color: #e53e3e !important; transform: scale(1.1); box-shadow: 0 0 0 4px rgba(229,62,62,0.2); }
+#btn-mic.grabando svg { animation: micPulse .8s ease-in-out infinite; }
+@keyframes micPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: .8; } }
+.mic-ondas { display: none; align-items: center; gap: 3px; height: 20px; }
+.mic-ondas.activo { display: flex; }
+.mic-onda { width: 3px; background: #e53e3e; border-radius: 3px; animation: onda .6s ease-in-out infinite; }
+.mic-onda:nth-child(1) { animation-delay: 0s; }
+.mic-onda:nth-child(2) { animation-delay: .1s; }
+.mic-onda:nth-child(3) { animation-delay: .2s; }
+.mic-onda:nth-child(4) { animation-delay: .1s; }
+.mic-onda:nth-child(5) { animation-delay: 0s; }
+@keyframes onda { 0%, 100% { height: 4px; } 50% { height: 16px; } }
 </style>
 </head>
 <body>
@@ -190,8 +202,19 @@ input:focus,select:focus{border-color:var(--accent)}
     </div>
 
     <div style="display:flex; gap:8px;">
+      <div class="mic-ondas" id="mic-ondas">
+  <div class="mic-onda"></div>
+  <div class="mic-onda"></div>
+  <div class="mic-onda"></div>
+  <div class="mic-onda"></div>
+  <div class="mic-onda"></div>
+      </div>
       <input type="text" id="chat-input" placeholder="Escribe aquí..." style="flex:1; margin-bottom:0;" onkeypress="if(event.key === 'Enter') enviarMensajeIA()">
-      <button id="btn-mic" class="btn" style="width:auto;padding:12px 14px;background:var(--card);color:var(--muted);border-color:var(--border);" ontouchstart="iniciarVoz(event)" ontouchend="pararVoz(event)" onmousedown="iniciarVoz(event)" onmouseup="pararVoz(event)">🎤</button>
+<button id="btn-mic" class="btn" style="width:auto;padding:12px 14px;background:var(--card);color:var(--muted);border-color:var(--border);" onclick="toggleVoz()">
+  <svg id="mic-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-1 14.93V20H9v2h6v-2h-2v-2.07A7 7 0 0 0 19 11h-2a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93z"/>
+  </svg>
+</button>
       <button class="btn btn-primary" style="width:auto; padding:12px 16px;" onclick="enviarMensajeIA()">Enviar</button>
     </div>
 
@@ -765,40 +788,69 @@ function cancelarGastoIA() {
   appendChat('ia', 'Cancelado. Dime si quieres modificar algo o añadir otro gasto.');
 }
 
-function iniciarVoz(e) {
-  e.preventDefault();
-  if (reconocimiento) return;
+let reconocimiento = null;
+let grabando = false;
+
+function toggleVoz() {
+  if (grabando) {
+    pararVoz();
+  } else {
+    iniciarVoz();
+  }
+}
+
+function iniciarVoz() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    alert('Tu navegador no soporta reconocimiento de voz. Prueba con Chrome o Safari.');
+    alert('Tu navegador no soporta reconocimiento de voz. Prueba con Safari.');
     return;
   }
   reconocimiento = new SpeechRecognition();
   reconocimiento.lang = 'es-ES';
   reconocimiento.continuous = false;
-  reconocimiento.interimResults = false;
+  reconocimiento.interimResults = true;
+
+  reconocimiento.onstart = () => {
+    grabando = true;
+    document.getElementById('btn-mic').classList.add('grabando');
+    document.getElementById('mic-ondas').classList.add('activo');
+    document.getElementById('chat-input').placeholder = 'Escuchando...';
+  };
+
   reconocimiento.onresult = (event) => {
-    const texto = event.results[0][0].transcript;
+    let texto = '';
+    for (let i = 0; i < event.results.length; i++) {
+      texto += event.results[i][0].transcript;
+    }
     document.getElementById('chat-input').value = texto;
-    document.getElementById('btn-mic').classList.remove('grabando');
-    reconocimiento = null;
-    enviarMensajeIA();
   };
-  reconocimiento.onerror = () => {
-    document.getElementById('btn-mic').classList.remove('grabando');
-    reconocimiento = null;
-  };
+
   reconocimiento.onend = () => {
+    grabando = false;
     document.getElementById('btn-mic').classList.remove('grabando');
-    reconocimiento = null;
+    document.getElementById('mic-ondas').classList.remove('activo');
+    document.getElementById('chat-input').placeholder = 'Escribe aquí...';
+    const texto = document.getElementById('chat-input').value.trim();
+    if (texto) enviarMensajeIA();
   };
+
+  reconocimiento.onerror = (ev) => {
+    grabando = false;
+    reconocimiento = null;
+    document.getElementById('btn-mic').classList.remove('grabando');
+    document.getElementById('mic-ondas').classList.remove('activo');
+    document.getElementById('chat-input').placeholder = 'Escribe aquí...';
+    if (ev.error !== 'no-speech') alert('Error al grabar: ' + ev.error);
+  };
+
   reconocimiento.start();
-  document.getElementById('btn-mic').classList.add('grabando');
 }
 
-function pararVoz(e) {
-  e.preventDefault();
-  // No paramos manualmente — el reconocimiento para solo al detectar silencio
+function pararVoz() {
+  if (reconocimiento) {
+    reconocimiento.stop();
+    reconocimiento = null;
+  }
 }
 // === FIN LOGICA IA ===
 
