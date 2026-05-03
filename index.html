@@ -113,7 +113,7 @@ input:focus,select:focus{border-color:var(--accent)}
 .loading-txt{font-size:14px;color:var(--muted)}
 
 /* ESTILOS NUEVOS PARA EL CHAT IA */
-.chat-msg { padding: 12px 14px; border-radius: 12px; max-width: 85%; font-size: 14px; line-height: 1.4; margin-bottom: 8px; word-wrap: break-word; }
+.chat-msg { padding: 12px 14px; border-radius: 12px; max-width: 85%; font-size: 14px; line-height: 1.4; margin-bottom: 8px; word-wrap: break-word; white-space: pre-wrap; }
 .chat-user { background: var(--accent); color: var(--bg); align-self: flex-end; border-bottom-right-radius: 4px; }
 .chat-ia { background: var(--card); border: 1px solid var(--border); color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; }
 .chat-loading { display: flex; gap: 4px; align-items: center; justify-content: center; height: 20px;}
@@ -553,7 +553,13 @@ function appendChat(role, text, id = null) {
   if(text === 'loading') {
     div.innerHTML = `<div class="chat-loading"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
   } else {
-    div.textContent = text;
+    // Mini-conversor de Markdown a HTML para que se vea bonito
+    let formateado = text
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;') // Seguridad contra código inyectado
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Transforma **negrita**
+      .replace(/\*(.*?)\*/g, '<em>$1</em>'); // Transforma *cursiva*
+      
+    div.innerHTML = formateado;
   }
   
   history.appendChild(div);
